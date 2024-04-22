@@ -27,7 +27,7 @@ from bytewax.run import (
     _locate_dataflow,
     _prepare_import,
 )
-from bytewax.serde import set_serde_class
+from bytewax.serde import set_serde_obj
 
 __all__ = [
     "TestingSink",
@@ -309,7 +309,7 @@ if __name__ == "__main__":
 
     module_name, serde_class_name = kwargs.pop("serde").rsplit(".", 1)
     serde_class = getattr(importlib.import_module(module_name), serde_class_name)
-    set_serde_class(serde_class())
+    set_serde_obj(serde_class())
 
     recovery_directory, backup_interval = (
         kwargs.pop("recovery_directory"),

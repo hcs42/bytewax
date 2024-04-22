@@ -15,6 +15,7 @@ class BytewaxTracer:
     This should only be built via `setup_tracing`.
 
     """
+
     ...
 
     def __new__(cls, *args, **kwargs):
@@ -43,26 +44,18 @@ class RecoveryConfig:
     :type backup_interval: typing.Optional[datetime.timedelta]
 
     """
+
     ...
 
-    def __init__(self, db_dir, snapshot_serde, backup_interval=None):
-        ...
-
+    def __init__(self, db_dir, backup_interval=None): ...
     def __new__(cls, *args, **kwargs):
         """Create and return a new object.  See help(type) for accurate signature."""
         ...
 
     @property
-    def backup_interval(self):
-        ...
-
+    def backup_interval(self): ...
     @property
-    def db_dir(self):
-        ...
-
-    @property
-    def snapshot_serde(self):
-        ...
+    def db_dir(self): ...
 
 class TracingConfig:
     """Base class for tracing/logging configuration.
@@ -73,19 +66,32 @@ class TracingConfig:
     traces to go.
 
     """
+
     ...
 
-    def __init__(self):
-        ...
-
+    def __init__(self): ...
     def __new__(cls, *args, **kwargs):
         """Create and return a new object.  See help(type) for accurate signature."""
         ...
 
-def cli_main(flow, *, workers_per_process=1, process_id=None, addresses=None, epoch_interval=None, recovery_config=None):
-    ...
-
-def cluster_main(flow, addresses, proc_id, *, epoch_interval=None, recovery_config=None, worker_count_per_proc=1):
+def cli_main(
+    flow,
+    *,
+    workers_per_process=1,
+    process_id=None,
+    addresses=None,
+    epoch_interval=None,
+    recovery_config=None,
+): ...
+def cluster_main(
+    flow,
+    addresses,
+    proc_id,
+    *,
+    epoch_interval=None,
+    recovery_config=None,
+    worker_count_per_proc=1,
+):
     """Execute a dataflow in the current process as part of a cluster.
 
     This is only used for unit testing. See `bytewax.run`.
@@ -194,6 +200,33 @@ def run_main(flow, *, epoch_interval=None, recovery_config=None):
     """
     ...
 
+def set_serde_obj(serde_object):
+    """Setup Bytewax's internal serde for Python objects
+
+    ```python
+    import json
+    from bytewax.serde import Serde, set_serde_obj
+    from typing import override, Any
+
+    class JSONSerde(Serde):
+        @override
+        def ser(self, obj: Any) -> bytes:
+            return json.dumps(obj).encode("utf-8")
+
+        @override
+        def de(self, s: bytes) -> Any:
+            return json.loads(s)
+
+    set_serde_obj(JSONSerde())
+    ```
+
+    :arg serde_obj: The instantiated bytewax.serde.Serde class to use
+
+    :type serde_obj: bytewax.serde.Serde
+
+    """
+    ...
+
 def setup_tracing(tracing_config=None, log_level=None):
     """Setup Bytewax's internal tracing and logging.
 
@@ -207,6 +240,7 @@ def setup_tracing(tracing_config=None, log_level=None):
 
     ```python
     from bytewax.tracing import setup_tracing
+
     tracer = setup_tracing()
     ```
 
@@ -223,7 +257,14 @@ def setup_tracing(tracing_config=None, log_level=None):
     """
     ...
 
-def test_cluster(flow, *, epoch_interval=None, recovery_config=None, processes=1, workers_per_process=1):
+def test_cluster(
+    flow,
+    *,
+    epoch_interval=None,
+    recovery_config=None,
+    processes=1,
+    workers_per_process=1,
+):
     """Execute a Dataflow by spawning multiple Python processes.
 
     Blocks until execution is complete.
@@ -235,6 +276,7 @@ def test_cluster(flow, *, epoch_interval=None, recovery_config=None, processes=1
 
 class AbortExecution(RuntimeError):
     """Raise this from `next_batch` to abort for testing purposes."""
+
     ...
 
 class InconsistentPartitionsError(ValueError):
@@ -250,6 +292,7 @@ class InconsistentPartitionsError(ValueError):
     continously failing on only some workers.
 
     """
+
     ...
 
 class JaegerConfig(TracingConfig):
@@ -278,26 +321,20 @@ class JaegerConfig(TracingConfig):
     :type sampling_ratio: float
 
     """
+
     ...
 
-    def __init__(self, service_name, endpoint=None, sampling_ratio=1.0):
-        ...
-
+    def __init__(self, service_name, endpoint=None, sampling_ratio=1.0): ...
     def __new__(cls, *args, **kwargs):
         """Create and return a new object.  See help(type) for accurate signature."""
         ...
 
     @property
-    def endpoint(self):
-        ...
-
+    def endpoint(self): ...
     @property
-    def sampling_ratio(self):
-        ...
-
+    def sampling_ratio(self): ...
     @property
-    def service_name(self):
-        ...
+    def service_name(self): ...
 
 class OtlpTracingConfig(TracingConfig):
     """Send traces to the OpenTelemetry collector.
@@ -325,29 +362,24 @@ class OtlpTracingConfig(TracingConfig):
     :type sampling_ratio: float
 
     """
+
     ...
 
-    def __init__(self, service_name, url=None, sampling_ratio=1.0):
-        ...
-
+    def __init__(self, service_name, url=None, sampling_ratio=1.0): ...
     def __new__(cls, *args, **kwargs):
         """Create and return a new object.  See help(type) for accurate signature."""
         ...
 
     @property
-    def sampling_ratio(self):
-        ...
-
+    def sampling_ratio(self): ...
     @property
-    def service_name(self):
-        ...
-
+    def service_name(self): ...
     @property
-    def url(self):
-        ...
+    def url(self): ...
 
 class MissingPartitionsError(FileNotFoundError):
     """Raised when an incomplete set of recovery partitions is detected."""
+
     ...
 
 class NoPartitionsError(FileNotFoundError):
@@ -356,4 +388,5 @@ class NoPartitionsError(FileNotFoundError):
     This is probably due to the wrong recovery directory being specified.
 
     """
+
     ...
