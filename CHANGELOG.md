@@ -9,6 +9,11 @@ For help with updating to new Bytewax versions, please see the
 __Add any extra change notes here and we'll put them in the release
 notes on GitHub when we make a new release.__
 
+- *Breaking change* The internal format of recovery databases has been
+  changed from using `JsonPickle` to Python's built-in {py:obj}`pickle`.
+  Recovery stores that used the old format will not be usable after
+  upgrading.
+
 - Adds the ability to use a custom {py:obj}`~bytewax.serde.Serde`
   class for serialization and recovery. See the `bytewax.serde`
   module documentation for more information.
