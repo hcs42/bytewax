@@ -1,6 +1,5 @@
 """Helper tools for testing dataflows."""
 
-import importlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from itertools import islice
@@ -27,7 +26,6 @@ from bytewax.run import (
     _locate_dataflow,
     _prepare_import,
 )
-from bytewax.serde import set_serde_obj
 
 __all__ = [
     "TestingSink",
@@ -306,10 +304,6 @@ if __name__ == "__main__":
     kwargs = vars(_parse_args())
 
     kwargs["epoch_interval"] = kwargs.pop("snapshot_interval")
-
-    module_name, serde_class_name = kwargs.pop("serde").rsplit(".", 1)
-    serde_class = getattr(importlib.import_module(module_name), serde_class_name)
-    set_serde_obj(serde_class())
 
     recovery_directory, backup_interval = (
         kwargs.pop("recovery_directory"),
