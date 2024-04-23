@@ -9,6 +9,10 @@ For help with updating to new Bytewax versions, please see the
 __Add any extra change notes here and we'll put them in the release
 notes on GitHub when we make a new release.__
 
+- Adds the ability to use a custom {py:obj}`~bytewax.serde.Serde`
+  class for serialization and recovery. See the `bytewax.serde`
+  module documentation for more information.
+
 - *Breaking change* The `unary` operator and `UnaryLogic` have been
   renamed to `stateful` and `StatefulLogic` respectively.
 
