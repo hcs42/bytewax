@@ -12,6 +12,7 @@ from bytewax._bytewax import (
     run_main,
     test_cluster,
 )
+from bytewax.dataflow import Dataflow
 from bytewax.inputs import (
     AbortExecution,
     FixedPartitionedSource,
@@ -23,9 +24,10 @@ from bytewax.recovery import RecoveryConfig
 from bytewax.run import (
     _create_arg_parser,
     _EnvDefault,
-    _locate_dataflow,
+    _locate_subclass,
     _prepare_import,
 )
+from bytewax.serde import Serde
 
 __all__ = [
     "TestingSink",
@@ -295,7 +297,7 @@ def _parse_args():
     )
 
     args = parser.parse_args()
-    args.import_str = _prepare_import(args.import_str)
+    args.import_str = _prepare_import(args.import_str, default_name="flow")
 
     return args
 
@@ -303,18 +305,26 @@ def _parse_args():
 if __name__ == "__main__":
     kwargs = vars(_parse_args())
 
-    kwargs["epoch_interval"] = kwargs.pop("snapshot_interval")
+    snapshot_interval = kwargs.pop("snapshot_interval")
+    backup_interval = kwargs.pop("backup_interval")
+    recovery_directory = kwargs.pop("recovery_directory")
+    serde_import_str = kwargs.pop("serde")
 
-    recovery_directory, backup_interval = (
-        kwargs.pop("recovery_directory"),
-        kwargs.pop("backup_interval"),
-    )
+    # Recovery config
+    kwargs["epoch_interval"] = snapshot_interval
     kwargs["recovery_config"] = None
     if recovery_directory is not None:
         kwargs["recovery_config"] = RecoveryConfig(recovery_directory, backup_interval)
 
+    # Serde config
+    kwargs["serde"] = None
+    if serde_import_str is not None:
+        import_str = _prepare_import(serde_import_str, default_name="serde")
+        module_str, _, attrs_str = import_str.partition(":")
+        kwargs["serde"] = _locate_subclass(module_str, attrs_str, Serde)
+
     # Import the dataflow
     module_str, _, attrs_str = kwargs.pop("import_str").partition(":")
-    kwargs["flow"] = _locate_dataflow(module_str, attrs_str)
+    kwargs["flow"] = _locate_subclass(module_str, attrs_str, Dataflow)
 
     test_cluster(**kwargs)

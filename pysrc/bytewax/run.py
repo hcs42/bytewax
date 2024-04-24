@@ -19,14 +19,16 @@ from datetime import timedelta
 from pathlib import Path
 
 from bytewax._bytewax import cli_main
+from bytewax.dataflow import Dataflow
 from bytewax.recovery import RecoveryConfig
+from bytewax.serde import Serde
 
 __all__ = [
     "cli_main",
 ]
 
 
-def _locate_dataflow(module_name, dataflow_name):
+def _locate_subclass(module_name: str, object_name: str, superclass: type):
     """Import a module and try to find a Dataflow within it.
 
     Check if the given string is a variable name or a function.
@@ -35,8 +37,6 @@ def _locate_dataflow(module_name, dataflow_name):
 
     This is adapted from Flask's codebase.
     """
-    from bytewax.dataflow import Dataflow
-
     try:
         __import__(module_name)
     except ImportError as ex:
@@ -53,9 +53,9 @@ def _locate_dataflow(module_name, dataflow_name):
     # Parse dataflow_name as a single expression to determine if it's a valid
     # attribute name or function call.
     try:
-        expr = ast.parse(dataflow_name.strip(), mode="eval").body
+        expr = ast.parse(object_name.strip(), mode="eval").body
     except SyntaxError:
-        msg = f"Failed to parse {dataflow_name!r} as an attribute name or function call"
+        msg = f"Failed to parse {object_name!r} as an attribute name or function call"
         raise SyntaxError(msg) from None
 
     if isinstance(expr, ast.Name):
@@ -65,7 +65,7 @@ def _locate_dataflow(module_name, dataflow_name):
     elif isinstance(expr, ast.Call):
         # Ensure the function name is an attribute name only.
         if not isinstance(expr.func, ast.Name):
-            msg = f"Function reference must be a simple name: {dataflow_name!r}."
+            msg = f"Function reference must be a simple name: {object_name!r}."
             raise TypeError(msg)
 
         name = expr.func.id
@@ -77,10 +77,10 @@ def _locate_dataflow(module_name, dataflow_name):
         except ValueError:
             # literal_eval gives cryptic error messages, show a generic
             # message with the full expression instead.
-            msg = f"Failed to parse arguments as literal values: {dataflow_name!r}"
+            msg = f"Failed to parse arguments as literal values: {object_name!r}"
             raise ValueError(msg) from None
     else:
-        msg = f"Failed to parse {dataflow_name!r} as an attribute name or function call"
+        msg = f"Failed to parse {object_name!r} as an attribute name or function call"
         raise ValueError(msg)
 
     try:
@@ -93,26 +93,23 @@ def _locate_dataflow(module_name, dataflow_name):
     # to get the real application.
     if inspect.isfunction(attr):
         try:
-            dataflow = attr(*args, **kwargs)
+            instance = attr(*args, **kwargs)
         except TypeError as e:
             if not _called_with_wrong_args(attr):
                 raise
 
             msg = (
-                f"The factory {dataflow_name!r} in module {module.__name__!r} "
+                f"The factory {object_name!r} in module {module.__name__!r} "
                 "could not be called with the specified arguments"
             )
             raise TypeError(msg) from e
     else:
-        dataflow = attr
+        instance = attr
 
-    if isinstance(dataflow, Dataflow):
-        return dataflow
+    if isinstance(instance, superclass):
+        return instance
 
-    msg = (
-        "A valid Bytewax dataflow was not obtained from "
-        f"'{module.__name__}:{dataflow_name}'"
-    )
+    msg = "A valid object was not obtained from " f"'{module.__name__}:{object_name}'"
     raise RuntimeError(msg)
 
 
@@ -149,7 +146,7 @@ class _EnvDefault(argparse.Action):
         setattr(namespace, self.dest, values)
 
 
-def _prepare_import(import_str):
+def _prepare_import(import_str, default_name):
     """Given a filename this will try to calculate the python path.
 
     Add it to the search path and return the actual module name that
@@ -158,9 +155,9 @@ def _prepare_import(import_str):
     This is adapted from Flask's codebase.
 
     """
-    path, _, flow_name = import_str.partition(":")
-    if not flow_name:
-        flow_name = "flow"
+    path, _, object_name = import_str.partition(":")
+    if not object_name:
+        object_name = default_name
     path = os.path.realpath(path)
 
     fname, ext = os.path.splitext(path)
@@ -183,7 +180,7 @@ def _prepare_import(import_str):
     if sys.path[0] != path:
         sys.path.insert(0, path)
 
-    return ".".join(module_name[::-1]) + f":{flow_name}"
+    return ".".join(module_name[::-1]) + f":{object_name}"
 
 
 def _parse_timedelta(s):
@@ -197,9 +194,7 @@ def _create_arg_parser():
     that are used only for testing in the testing namespace.
     """
     parser = argparse.ArgumentParser(
-        prog="python -m bytewax.run",
-        description="Run a bytewax dataflow",
-        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+        prog="python -m bytewax.run", description="Run a bytewax dataflow"
     )
     parser.add_argument(
         "import_str",
@@ -208,6 +203,14 @@ def _create_arg_parser():
         "<module_name>[:<dataflow_variable_or_factory>] "
         "Example: src.dataflow or src.dataflow:flow or "
         "src.dataflow:get_flow('string_argument')",
+    )
+    parser.add_argument(
+        "--serde",
+        type=str,
+        help="Serde import string in the format "
+        "<module_name>[:<serde_variable_or_factory>] "
+        "Example: src.dataflow or src.dataflow:serde_object or "
+        "src.dataflow:get_serde('string_argument')",
     )
     recovery = parser.add_argument_group(
         "Recovery", """See the `bytewax.recovery` module docstring for more info."""
@@ -279,7 +282,7 @@ def _parse_args():
 
     args = arg_parser.parse_args()
 
-    args.import_str = _prepare_import(args.import_str)
+    args.import_str = _prepare_import(args.import_str, default_name="flow")
 
     # First of all check if a process_id was set with a different
     # env var, used in the helm chart for deploy
@@ -325,12 +328,13 @@ def _parse_args():
 
 if __name__ == "__main__":
     kwargs = vars(_parse_args())
-    snapshot_interval = kwargs.pop("snapshot_interval")
 
-    recovery_directory, backup_interval = (
-        kwargs.pop("recovery_directory"),
-        kwargs.pop("backup_interval"),
-    )
+    snapshot_interval = kwargs.pop("snapshot_interval")
+    backup_interval = kwargs.pop("backup_interval")
+    recovery_directory = kwargs.pop("recovery_directory")
+    serde_import_str = kwargs.pop("serde")
+
+    # Recovery config
     kwargs["recovery_config"] = None
     if recovery_directory is not None:
         kwargs["epoch_interval"] = snapshot_interval
@@ -341,6 +345,13 @@ if __name__ == "__main__":
         # anything else.
         kwargs["epoch_interval"] = snapshot_interval or timedelta(seconds=10)
 
+    # Serde config
+    kwargs["serde"] = None
+    if serde_import_str is not None:
+        import_str = _prepare_import(serde_import_str, default_name="serde")
+        module_str, _, attrs_str = import_str.partition(":")
+        kwargs["serde"] = _locate_subclass(module_str, attrs_str, Serde)
+
     # Prepare addresses
     addresses = kwargs.pop("addresses")
     if addresses is not None:
@@ -348,6 +359,6 @@ if __name__ == "__main__":
 
     # Import the dataflow
     module_str, _, attrs_str = kwargs.pop("import_str").partition(":")
-    kwargs["flow"] = _locate_dataflow(module_str, attrs_str)
+    kwargs["flow"] = _locate_subclass(module_str, attrs_str, Dataflow)
 
     cli_main(**kwargs)
